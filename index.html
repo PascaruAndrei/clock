@@ -25,6 +25,18 @@
   .bgs button { border: 2px solid transparent; border-radius: 14px; padding: 0 0 6px; background: none; color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
   .bgs button i { display: block; height: 54px; border-radius: 11px; margin-bottom: 5px; }
   .bgs button.on { border-color: rgba(255,255,255,.85); }
+  #photo { position: fixed; inset: 0; overflow: hidden; opacity: 0; transition: opacity 2.5s; }
+  #photo.on { opacity: 1; }
+  #photo div { position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 2.5s; }
+  #photo div.show { opacity: 1; animation: kenburns 130s ease-out both; }
+  #photo::after { content: ''; position: absolute; inset: 0;
+    background: linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.08) 40%, rgba(0,0,0,.15) 60%, rgba(0,0,0,.5)); }
+  @keyframes kenburns { from { transform: scale(1.02); } to { transform: scale(1.14) translate(-1.5%, -1%); } }
+  #prev { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; opacity: 0; pointer-events: none; }
+  #credit { position: fixed; left: max(env(safe-area-inset-left), 14px); top: max(env(safe-area-inset-top), 14px);
+    font-size: 11px; opacity: 0; transition: opacity .3s; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+  body.ui.photo #credit { opacity: .75; }
+  .bgs { grid-template-columns: repeat(4, 1fr) !important; }
   #dim { position: fixed; inset: 0; background: #000; opacity: var(--dim); pointer-events: none; transition: opacity 2s; }
 
   #app { position: fixed; inset: 0; display: grid; grid-template-rows: 1fr auto; gap: 2vh;
@@ -105,7 +117,10 @@
 <body>
 <canvas id="sky"></canvas>
 <canvas id="fx"></canvas>
+<div id="photo"><div></div><div></div></div>
+<canvas id="prev"></canvas>
 <div id="grain"></div>
+<div id="credit"></div>
 <div id="dim"></div>
 
 <main id="app">
@@ -133,9 +148,13 @@
     <button data-v="mesh"><i style="background:radial-gradient(circle at 20% 30%,#ff6a88,transparent 60%),radial-gradient(circle at 80% 70%,#6a8dff,transparent 60%),radial-gradient(circle at 70% 20%,#ffd36e,transparent 50%),#5b3fa0"></i>Mesh</button>
     <button data-v="chroma"><i style="background:linear-gradient(135deg,#1fa2a6,#2b5fb8)"></i>Chroma</button>
     <button data-v="midnight"><i style="background:radial-gradient(ellipse at 50% 90%,#4b3bbf,transparent 65%),#000"></i>Midnight</button>
+    <button data-v="photos"><i style="background:url(https://picsum.photos/id/29/160/120) center/cover"></i>Nature</button>
+    <button data-v="mountains"><i style="background:linear-gradient(transparent 55%,#3b3f6e 55%,#3b3f6e 70%,#1d2040 70%),linear-gradient(#f39a73,#7a6fb6)"></i>Mountains</button>
+    <button data-v="ocean"><i style="background:linear-gradient(transparent 58%,#1f6f9a 58%,#0f3d63),linear-gradient(#ffb47a,#5a8fd8)"></i>Ocean</button>
     <button data-v="sky"><i style="background:linear-gradient(#1c5cc8,#5ca2ec)"></i>Live sky</button>
     <button data-v="aurora"><i style="background:radial-gradient(circle at 70% 20%,#a04bb0,transparent 60%),linear-gradient(135deg,#1d5a4a,#2a1f5c)"></i>Aurora</button>
   </div>
+  <div class="row">Auto-change <div class="seg" data-pref="auto"><button data-v="0">Off</button><button data-v="2">2 min</button><button data-v="10">10 min</button></div></div>
   <div class="row">Weather effects <div class="seg" data-pref="fx"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
   <div class="row">Dim at night <div class="seg" data-pref="dim"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
   <h3>Weather</h3>
@@ -144,7 +163,7 @@
   <div class="search"><input id="city" placeholder="Search city" enterkeyhint="search" autocomplete="off"><button class="btn" id="go">Search</button></div>
   <div id="results"></div>
   <button class="btn done" id="done">Done</button>
-  <div class="note">Weather from Open-Meteo. Tap anywhere on the clock to show settings.</div>
+  <div class="note">Weather from Open-Meteo. Nature photos from Unsplash via Picsum. Auto-change cycles every background except Live sky. Tap anywhere on the clock to show settings.</div>
 </div>
 
 <script>
@@ -157,14 +176,16 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // ?wx=<WMO code>&h=<hour>&bg=<style> force a weather scene / time of day / background, for previewing.
 const demo = new URLSearchParams(location.search);
 const prefs = { font: 'rounded', h24: !/[ap]m/i.test(new Date().toLocaleTimeString()), secs: true,
-  bg: 'mesh', fx: false, v: 2, dim: true, unit: /^en-US/.test(navigator.language) && /^America\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? 'f' : 'c', loc: null };
+  bg: 'mesh', fx: false, auto: 2, v: 3, dim: true, unit: /^en-US/.test(navigator.language) && /^America\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? 'f' : 'c', loc: null };
 try {
   const stored = JSON.parse(localStorage.getItem('clockPrefs') || '{}');
   // Settings saved before the v2 backgrounds move to the new default look.
-  if (stored.v !== 2) { delete stored.bg; delete stored.fx; }
-  Object.assign(prefs, stored, { v: 2 });
+  if (!stored.v || stored.v < 2) { delete stored.bg; delete stored.fx; }
+  if (!stored.v || stored.v < 3) delete stored.auto;
+  Object.assign(prefs, stored, { v: 3 });
 } catch (e) {}
-if (demo.has('bg')) prefs.bg = demo.get('bg');
+if (demo.has('bg')) { prefs.bg = demo.get('bg'); prefs.auto = 0; }
+let activeBg = prefs.bg;
 const save = () => { try { localStorage.setItem('clockPrefs', JSON.stringify(prefs)); } catch (e) {} };
 
 
@@ -179,7 +200,7 @@ function applyPrefs() {
   document.documentElement.style.setProperty('--clock-weight', w);
   document.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b =>
     b.classList.toggle('on', String(prefs[seg.dataset.pref]) === b.dataset.v)));
-  document.body.classList.toggle('grain', prefs.bg === 'mesh' || prefs.bg === 'chroma');
+  document.body.classList.toggle('grain', activeBg === 'mesh' || activeBg === 'chroma');
   $('locName').textContent = prefs.loc ? prefs.loc.name || 'Current location' : 'No location';
 }
 
@@ -392,10 +413,10 @@ function draw(ts) {
   const sc = scene();
 
   // Mesh: large soft colour fields that shift palette with the time of day.
-  if (prefs.bg === 'mesh' || prefs.bg === 'chroma' || prefs.bg === 'midnight') {
+  if (activeBg === 'mesh' || activeBg === 'chroma' || activeBg === 'midnight') {
     const d = new Date(); let hour = d.getHours() + d.getMinutes() / 60;
     if (demo.has('h')) hour = +demo.get('h');
-    if (prefs.bg === 'mesh') {
+    if (activeBg === 'mesh') {
       const pal = meshPalette(hour);
       sctx.fillStyle = rgb(pal[4]); sctx.fillRect(0, 0, w, h);
       const R = Math.max(w, h);
@@ -410,7 +431,7 @@ function draw(ts) {
       const v = sctx.createLinearGradient(0, 0, 0, h);
       v.addColorStop(0, 'rgba(0,0,0,.1)'); v.addColorStop(.5, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.25)');
       sctx.fillStyle = v; sctx.fillRect(0, 0, w, h);
-    } else if (prefs.bg === 'chroma') {
+    } else if (activeBg === 'chroma') {
       // The colour itself tells the time: hue walks the full wheel once a day.
       const hue = hour / 24 * 360 + 200, a = t * .02;
       const cx = w / 2, cy = h / 2, L = Math.hypot(w, h) / 2;
@@ -434,7 +455,66 @@ function draw(ts) {
     drift(t); requestAnimationFrame(draw); return;
   }
 
-  if (prefs.bg === 'aurora') {
+  // Landscapes: time-of-day sky with layered, slowly drifting scenery drawn at full resolution.
+  if (activeBg === 'mountains' || activeBg === 'ocean') {
+    const [top, bot] = skyColors(now, st);
+    const g = sctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+    sctx.fillStyle = g; sctx.fillRect(0, 0, w, h);
+    const p = clamp((now - st.rise) / (st.set - st.rise), 0, 1);
+    const sx = .15 + .7 * (night ? .7 : p), sy = .5 - .3 * Math.sin(Math.PI * (night ? .5 : p));
+    const glow = sctx.createRadialGradient(sx * w, sy * h, 0, sx * w, sy * h, Math.max(w, h) * .5);
+    const gc = night ? [200, 205, 255] : p < .15 || p > .85 ? [255, 180, 110] : [255, 240, 200];
+    glow.addColorStop(0, rgb(gc, night ? .18 : .5)); glow.addColorStop(1, rgb(gc, 0));
+    sctx.fillStyle = glow; sctx.fillRect(0, 0, w, h);
+
+    fctx.setTransform(DPR, 0, 0, DPR, 0, 0); fctx.clearRect(0, 0, W, H);
+    // Sun or moon disc.
+    fctx.fillStyle = night ? 'rgba(235,235,255,.9)' : rgb(gc, .95);
+    fctx.beginPath(); fctx.arc(sx * W, sy * H, Math.min(W, H) * (night ? .035 : .05), 0, 6.28); fctx.fill();
+    const far = mix(bot, top, .3), near = top.map(v => v * .45);
+    if (activeBg === 'mountains') {
+      for (let i = 0; i < 5; i++) {
+        const k = i / 4, port = H > W, base = H * ((port ? .36 : .5) + k * (port ? .1 : .12)), amp = H * ((port ? .09 : .12) - k * .012), off = t * (2 + i * 5);
+        fctx.fillStyle = rgb(mix(far, near, .2 + k * .8));
+        fctx.beginPath(); fctx.moveTo(0, H);
+        for (let x = 0; x <= W + 8; x += 8) {
+          const u = (x + off) / W;
+          const y = base - amp * (.55 * Math.sin(u * (3 + i) + i * 1.3) + .3 * Math.sin(u * (7.3 + i * 2) + i * 4.1) + .15 * Math.sin(u * (17 + i * 3) + i));
+          fctx.lineTo(x, y);
+        }
+        fctx.lineTo(W, H); fctx.closePath(); fctx.fill();
+      }
+    } else {
+      const sea = mix(bot, [20, 70, 120], .55), deep = [8, 28, 58];
+      const horizon = H * (H > W ? .46 : .6);
+      const sg = fctx.createLinearGradient(0, horizon, 0, H);
+      sg.addColorStop(0, rgb(sea)); sg.addColorStop(1, rgb(deep));
+      fctx.fillStyle = sg; fctx.fillRect(0, horizon, W, H - horizon);
+      // Glittering reflection under the sun or moon.
+      for (let j = 0; j < 40; j++) {
+        const y = horizon + (j / 40) ** 1.5 * (H - horizon), wdt = (6 + j * 2.2) * (.5 + .5 * Math.sin(t * 2 + j * 1.7));
+        fctx.fillStyle = rgb(gc, (night ? .25 : .45) * (1 - j / 40));
+        fctx.fillRect(sx * W - wdt / 2 + Math.sin(t + j) * 6, y, wdt, 1.5 + j * .06);
+      }
+      for (let i = 0; i < 6; i++) {
+        const k = i / 5, base = horizon + (H - horizon) * (.1 + k * .9) ** 1.3, amp = 2 + k * 10, len = 80 + k * 260;
+        fctx.fillStyle = rgb(mix(sea, deep, .2 + k * .6), .55);
+        fctx.beginPath(); fctx.moveTo(0, H);
+        for (let x = 0; x <= W + 6; x += 6) fctx.lineTo(x, base + amp * Math.sin((x / len) * 6.28 + t * (.4 + k * .5) + i * 2));
+        fctx.lineTo(W, H); fctx.closePath(); fctx.fill();
+      }
+    }
+    drift(t); requestAnimationFrame(draw); return;
+  }
+
+  if (activeBg === 'photos') {
+    sctx.fillStyle = '#000'; sctx.fillRect(0, 0, w, h);
+    fctx.setTransform(1, 0, 0, 1, 0, 0); fctx.clearRect(0, 0, fx.width, fx.height);
+    drift(t); requestAnimationFrame(draw); return;
+  }
+
+  if (activeBg === 'aurora') {
     const d = new Date(), base = (d.getHours() * 60 + d.getMinutes()) / 1440 * 360 + t * 2;
     const hsl = (hh, s, l, a = 1) => `hsla(${((hh % 360) + 360) % 360},${s}%,${l}%,${a})`;
     const g = sctx.createLinearGradient(0, 0, w, h);
@@ -548,6 +628,56 @@ function meshPalette(hour) {
   return MESH[0][1];
 }
 
+// ---------- Background switching ----------
+const PHOTOS = [[10, "Paul Jarvis"], [11, "Paul Jarvis"], [13, "Paul Jarvis"], [14, "Paul Jarvis"], [15, "Paul Jarvis"], [16, "Paul Jarvis"], [17, "Paul Jarvis"], [18, "Paul Jarvis"], [28, "Jerry Adney"], [29, "Go Wild"], [54, "Nicholas Swanson"], [110, "Kenneth Thewissen"], [124, "Anton Sulsky"], [127, "Marcin Czerwinski"], [128, "Matteo Minelli"], [135, "Yuriy Khimanin"], [152, "Steven Spassov"], [176, "Good Free Photos"], [184, "Tim de Groot"], [190, "James Forbes"], [191, "Alex Talmon"], [206, "Philipp Reiner"], [213, "Kelly Sikkema"], [218, "Monika Majkowska"], [222, "Todd Quackenbush"], [227, "Andrea Boldizsar"], [229, "Orlova Maria"], [235, "Paul E. Harrer"], [236, "Chris Adams"], [241, "Sylwia Bartyzel"]];
+const CYCLE = ['mesh', 'photos', 'mountains', 'chroma', 'ocean', 'midnight', 'photos', 'aurora'];
+let photoIdx = Math.floor(Math.random() * PHOTOS.length), photoSlot = 0, lastSwitch = Date.now();
+const photoUrl = id => innerWidth > innerHeight ? `https://picsum.photos/id/${id}/1920/1080` : `https://picsum.photos/id/${id}/1080/1920`;
+
+// Show the next nature photo once it has loaded; resolves false if it can't (e.g. offline).
+function nextPhoto() {
+  return new Promise(resolve => {
+    const [id, author] = PHOTOS[photoIdx = (photoIdx + 1) % PHOTOS.length];
+    const img = new Image();
+    img.onload = () => {
+      const slots = $('photo').children, cur = slots[photoSlot], nxt = slots[photoSlot ^= 1];
+      nxt.style.backgroundImage = `url(${img.src})`;
+      nxt.classList.remove('show'); void nxt.offsetWidth; nxt.classList.add('show'); cur.classList.remove('show');
+      $('credit').textContent = `Photo: ${author} / Unsplash`;
+      resolve(true);
+    };
+    img.onerror = () => resolve(false);
+    img.src = photoUrl(id);
+  });
+}
+
+// Cross-fade from the current background to another one.
+async function setBackground(bg) {
+  if (bg === 'photos' && !(await nextPhoto())) bg = activeBg === 'photos' ? 'mesh' : activeBg;
+  if (bg === activeBg && bg !== 'photos') return;
+  const prev = $('prev'), pc = prev.getContext('2d');
+  prev.width = W; prev.height = H;
+  pc.drawImage(sky, 0, 0, W, H); pc.drawImage(fx, 0, 0, W, H);
+  prev.style.transition = 'none'; prev.style.opacity = activeBg === 'photos' ? 0 : 1;
+  activeBg = bg;
+  $('photo').classList.toggle('on', bg === 'photos');
+  document.body.classList.toggle('photo', bg === 'photos');
+  applyPrefs();
+  requestAnimationFrame(() => requestAnimationFrame(() => { prev.style.transition = 'opacity 2.5s'; prev.style.opacity = 0; }));
+}
+
+// Every 2 minutes: next background in the cycle (Live sky stays put), or the next photo.
+setInterval(() => {
+  if (document.hidden || prefs.bg === 'sky') return;
+  const every = (prefs.auto || 2) * 60000;
+  if (Date.now() - lastSwitch < every) return;
+  lastSwitch = Date.now();
+  if (prefs.auto) {
+    const i = CYCLE.indexOf(activeBg);
+    setBackground(CYCLE[(i + 1) % CYCLE.length]);
+  } else if (activeBg === 'photos') nextPhoto();
+}, 5000);
+
 // ---------- UI ----------
 let uiTimer;
 function showUI() { document.body.classList.add('ui'); clearTimeout(uiTimer); uiTimer = setTimeout(() => document.body.classList.remove('ui'), 4000); }
@@ -558,7 +688,9 @@ $('done').addEventListener('click', () => { $('sheet').classList.remove('open');
 
 document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  const v = b.dataset.v; prefs[seg.dataset.pref] = v === 'true' ? true : v === 'false' ? false : v;
+  const v = b.dataset.v; prefs[seg.dataset.pref] = v === 'true' ? true : v === 'false' ? false : /^\d+$/.test(v) ? +v : v;
+  if (seg.dataset.pref === 'bg') { setBackground(v); lastSwitch = Date.now(); }
+  if (seg.dataset.pref === 'auto') lastSwitch = Date.now();
   save(); applyPrefs(); tick(); renderWeather(); last = '';
 }));
 $('useGps').addEventListener('click', locate);
@@ -588,6 +720,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 
 // ---------- Start ----------
 applyPrefs(); tick(); renderWeather();
+if (activeBg === 'photos') { activeBg = ''; setBackground('photos'); }
 setInterval(tick, 250);
 requestAnimationFrame(draw);
 requestWake();
