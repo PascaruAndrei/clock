@@ -19,6 +19,12 @@
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; }
+  #grain { position: fixed; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: overlay; transition: opacity 1s; }
+  body.grain #grain { opacity: .3; }
+  .bgs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 4px 0 8px; }
+  .bgs button { border: 2px solid transparent; border-radius: 14px; padding: 0 0 6px; background: none; color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+  .bgs button i { display: block; height: 54px; border-radius: 11px; margin-bottom: 5px; }
+  .bgs button.on { border-color: rgba(255,255,255,.85); }
   #dim { position: fixed; inset: 0; background: #000; opacity: var(--dim); pointer-events: none; transition: opacity 2s; }
 
   #app { position: fixed; inset: 0; display: grid; grid-template-rows: 1fr auto; gap: 2vh;
@@ -99,6 +105,7 @@
 <body>
 <canvas id="sky"></canvas>
 <canvas id="fx"></canvas>
+<div id="grain"></div>
 <div id="dim"></div>
 
 <main id="app">
@@ -121,7 +128,15 @@
   <div class="row">Format <div class="seg" data-pref="h24"><button data-v="false">12h</button><button data-v="true">24h</button></div></div>
   <div class="row">Seconds <div class="seg" data-pref="secs"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
   <h3>Look</h3>
-  <div class="row">Background <div class="seg" data-pref="bg"><button data-v="live">Live sky</button><button data-v="aurora">Aurora</button></div></div>
+  <div class="row">Background</div>
+  <div class="seg bgs" data-pref="bg">
+    <button data-v="mesh"><i style="background:radial-gradient(circle at 20% 30%,#ff6a88,transparent 60%),radial-gradient(circle at 80% 70%,#6a8dff,transparent 60%),radial-gradient(circle at 70% 20%,#ffd36e,transparent 50%),#5b3fa0"></i>Mesh</button>
+    <button data-v="chroma"><i style="background:linear-gradient(135deg,#1fa2a6,#2b5fb8)"></i>Chroma</button>
+    <button data-v="midnight"><i style="background:radial-gradient(ellipse at 50% 90%,#4b3bbf,transparent 65%),#000"></i>Midnight</button>
+    <button data-v="sky"><i style="background:linear-gradient(#1c5cc8,#5ca2ec)"></i>Live sky</button>
+    <button data-v="aurora"><i style="background:radial-gradient(circle at 70% 20%,#a04bb0,transparent 60%),linear-gradient(135deg,#1d5a4a,#2a1f5c)"></i>Aurora</button>
+  </div>
+  <div class="row">Weather effects <div class="seg" data-pref="fx"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
   <div class="row">Dim at night <div class="seg" data-pref="dim"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
   <h3>Weather</h3>
   <div class="row">Units <div class="seg" data-pref="unit"><button data-v="c">°C</button><button data-v="f">°F</button></div></div>
@@ -139,13 +154,19 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // ---------- Preferences ----------
+// ?wx=<WMO code>&h=<hour>&bg=<style> force a weather scene / time of day / background, for previewing.
+const demo = new URLSearchParams(location.search);
 const prefs = { font: 'rounded', h24: !/[ap]m/i.test(new Date().toLocaleTimeString()), secs: true,
-  bg: 'live', dim: true, unit: /^en-US/.test(navigator.language) && /^America\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? 'f' : 'c', loc: null };
-try { Object.assign(prefs, JSON.parse(localStorage.getItem('clockPrefs') || '{}')); } catch (e) {}
+  bg: 'mesh', fx: false, v: 2, dim: true, unit: /^en-US/.test(navigator.language) && /^America\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? 'f' : 'c', loc: null };
+try {
+  const stored = JSON.parse(localStorage.getItem('clockPrefs') || '{}');
+  // Settings saved before the v2 backgrounds move to the new default look.
+  if (stored.v !== 2) { delete stored.bg; delete stored.fx; }
+  Object.assign(prefs, stored, { v: 2 });
+} catch (e) {}
+if (demo.has('bg')) prefs.bg = demo.get('bg');
 const save = () => { try { localStorage.setItem('clockPrefs', JSON.stringify(prefs)); } catch (e) {} };
 
-// ?wx=<WMO code>&h=<hour> forces a weather scene / time of day, for previewing.
-const demo = new URLSearchParams(location.search);
 
 const FONTS = {
   rounded: ['ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif', 600],
@@ -158,6 +179,7 @@ function applyPrefs() {
   document.documentElement.style.setProperty('--clock-weight', w);
   document.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b =>
     b.classList.toggle('on', String(prefs[seg.dataset.pref]) === b.dataset.v)));
+  document.body.classList.toggle('grain', prefs.bg === 'mesh' || prefs.bg === 'chroma');
   $('locName').textContent = prefs.loc ? prefs.loc.name || 'Current location' : 'No location';
 }
 
@@ -309,6 +331,10 @@ function tick() {
 }
 
 // ---------- Background ----------
+// Fine film grain, generated once, gives the gradients a printed, less digital feel.
+(() => { const c = document.createElement('canvas'); c.width = c.height = 160; const x = c.getContext('2d'), im = x.createImageData(160, 160);
+  for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 60; }
+  x.putImageData(im, 0, 0); $('grain').style.backgroundImage = `url(${c.toDataURL()})`; })();
 const sky = $('sky'), sctx = sky.getContext('2d');
 const fx = $('fx'), fctx = fx.getContext('2d');
 const SKY_SCALE = .2;
@@ -365,6 +391,49 @@ function draw(ts) {
   const night = now < st.rise - 1800 || now > st.set + 1800;
   const sc = scene();
 
+  // Mesh: large soft colour fields that shift palette with the time of day.
+  if (prefs.bg === 'mesh' || prefs.bg === 'chroma' || prefs.bg === 'midnight') {
+    const d = new Date(); let hour = d.getHours() + d.getMinutes() / 60;
+    if (demo.has('h')) hour = +demo.get('h');
+    if (prefs.bg === 'mesh') {
+      const pal = meshPalette(hour);
+      sctx.fillStyle = rgb(pal[4]); sctx.fillRect(0, 0, w, h);
+      const R = Math.max(w, h);
+      for (let i = 0; i < 4; i++) {
+        const x = w * (.5 + .42 * Math.sin(t * (.045 + i * .012) + i * 1.9));
+        const y = h * (.5 + .42 * Math.cos(t * (.037 + i * .01) + i * 2.6));
+        const rg = sctx.createRadialGradient(x, y, 0, x, y, R * (.48 + .06 * Math.sin(t * .07 + i)));
+        rg.addColorStop(0, rgb(pal[i], 1)); rg.addColorStop(.45, rgb(pal[i], .6)); rg.addColorStop(1, rgb(pal[i], 0));
+        sctx.fillStyle = rg; sctx.fillRect(0, 0, w, h);
+      }
+      // Gentle shade behind the text keeps the clock readable on bright colours.
+      const v = sctx.createLinearGradient(0, 0, 0, h);
+      v.addColorStop(0, 'rgba(0,0,0,.1)'); v.addColorStop(.5, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.25)');
+      sctx.fillStyle = v; sctx.fillRect(0, 0, w, h);
+    } else if (prefs.bg === 'chroma') {
+      // The colour itself tells the time: hue walks the full wheel once a day.
+      const hue = hour / 24 * 360 + 200, a = t * .02;
+      const cx = w / 2, cy = h / 2, L = Math.hypot(w, h) / 2;
+      const g = sctx.createLinearGradient(cx - Math.cos(a) * L, cy - Math.sin(a) * L, cx + Math.cos(a) * L, cy + Math.sin(a) * L);
+      g.addColorStop(0, `hsl(${hue % 360},70%,42%)`); g.addColorStop(1, `hsl(${(hue + 45) % 360},75%,26%)`);
+      sctx.fillStyle = g; sctx.fillRect(0, 0, w, h);
+      const x = w * (.5 + .3 * Math.sin(t * .05)), y = h * (.35 + .2 * Math.cos(t * .04));
+      const rg = sctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) * .6);
+      rg.addColorStop(0, `hsla(${(hue - 30) % 360},85%,60%,.35)`); rg.addColorStop(1, `hsla(${(hue - 30) % 360},85%,60%,0)`);
+      sctx.fillStyle = rg; sctx.fillRect(0, 0, w, h);
+    } else {
+      // Midnight: true black (saves battery on OLED) with one slow, breathing glow.
+      sctx.fillStyle = '#000'; sctx.fillRect(0, 0, w, h);
+      const hue = 250 + 40 * Math.sin(t * .01 + hour), br = .8 + .2 * Math.sin(t * .4);
+      const x = w * (.5 + .15 * Math.sin(t * .03)), y = h * .78;
+      const rg = sctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) * .55 * br);
+      rg.addColorStop(0, `hsla(${hue},70%,45%,.55)`); rg.addColorStop(.6, `hsla(${hue + 30},70%,30%,.15)`); rg.addColorStop(1, `hsla(${hue},70%,30%,0)`);
+      sctx.fillStyle = rg; sctx.fillRect(0, 0, w, h);
+    }
+    fctx.setTransform(1, 0, 0, 1, 0, 0); fctx.clearRect(0, 0, fx.width, fx.height);
+    drift(t); requestAnimationFrame(draw); return;
+  }
+
   if (prefs.bg === 'aurora') {
     const d = new Date(), base = (d.getHours() * 60 + d.getMinutes()) / 1440 * 360 + t * 2;
     const hsl = (hh, s, l, a = 1) => `hsla(${((hh % 360) + 360) % 360},${s}%,${l}%,${a})`;
@@ -378,8 +447,8 @@ function draw(ts) {
       rg.addColorStop(0, hsl(hue, 80, 55, .44)); rg.addColorStop(1, hsl(hue, 80, 55, 0));
       sctx.fillStyle = rg; sctx.fillRect(0, 0, w, h);
     }
-    fctx.clearRect(0, 0, fx.width, fx.height);
-    requestAnimationFrame(draw); return;
+    fctx.setTransform(1, 0, 0, 1, 0, 0); fctx.clearRect(0, 0, fx.width, fx.height);
+    drift(t); requestAnimationFrame(draw); return;
   }
 
   // Sky gradient, greyed and darkened by cloud cover.
@@ -425,7 +494,7 @@ function draw(ts) {
   // Foreground particles at full resolution.
   fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   fctx.clearRect(0, 0, W, H);
-  const kind = ensureParts(sc.kind, sc.intensity, night);
+  const kind = prefs.fx ? ensureParts(sc.kind, sc.intensity, night) : '';
   if (kind === 'rain') {
     fctx.strokeStyle = 'rgba(200,225,255,.45)'; fctx.lineCap = 'round';
     for (const q of parts) {
@@ -451,14 +520,32 @@ function draw(ts) {
     }
     fctx.globalAlpha = 1;
   }
-  if (sc.kind === 'thunder') {
+  if (prefs.fx && sc.kind === 'thunder') {
     if (t > nextFlash) { flash = 1; nextFlash = t + 5 + Math.random() * 9; }
     if (flash > .01) { fctx.fillStyle = `rgba(230,235,255,${flash * .5})`; fctx.fillRect(0, 0, W, H); flash *= .86; }
   }
 
-  // Tiny slow drift of the clock to avoid OLED burn-in.
-  $('clockWrap').style.transform = `translate(${Math.sin(t / 60) * 1.2}vw, ${Math.cos(t / 47) * 1}vh)`;
+  drift(t);
   requestAnimationFrame(draw);
+}
+
+// Tiny slow drift of the clock to avoid OLED burn-in.
+function drift(t) { $('clockWrap').style.transform = `translate(${Math.sin(t / 60) * 1.2}vw, ${Math.cos(t / 47) * 1}vh)`; }
+
+// Mesh palettes (4 blob colours + base) blended across the day.
+const MESH = [
+  [0, [[58, 12, 163], [114, 9, 183], [20, 40, 120], [76, 30, 140], [14, 10, 40]]],
+  [7, [[255, 122, 138], [255, 176, 110], [130, 120, 255], [255, 90, 140], [90, 50, 120]]],
+  [13, [[40, 140, 255], [0, 200, 220], [120, 110, 240], [80, 220, 200], [30, 70, 160]]],
+  [19, [[255, 110, 90], [200, 80, 190], [255, 180, 90], [120, 70, 200], [60, 25, 80]]],
+  [24, [[58, 12, 163], [114, 9, 183], [20, 40, 120], [76, 30, 140], [14, 10, 40]]],
+];
+function meshPalette(hour) {
+  for (let i = 0; i < MESH.length - 1; i++) {
+    const [h0, a] = MESH[i], [h1, b] = MESH[i + 1];
+    if (hour <= h1) { const k = (hour - h0) / (h1 - h0), e = k * k * (3 - 2 * k); return a.map((c, j) => mix(c, b[j], e)); }
+  }
+  return MESH[0][1];
 }
 
 // ---------- UI ----------
