@@ -38,7 +38,7 @@
     padding: max(env(safe-area-inset-top), 16px) max(env(safe-area-inset-right), 16px)
              max(env(safe-area-inset-bottom), 16px) max(env(safe-area-inset-left), 16px); }
   #clockWrap { display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-shadow: 0 2px 30px rgba(0,0,0,.25); will-change: transform; min-width: 0; }
+    text-shadow: 0 2px 24px rgba(0,0,0,.35), 0 0 2px rgba(0,0,0,.15); will-change: transform; min-width: 0; }
   #date { font-size: clamp(14px, 4.6vw, 30px); font-weight: 500; letter-spacing: .02em; opacity: .9; }
   #time { display: flex; align-items: flex-start; font-family: var(--clock-font); font-weight: var(--clock-weight);
     font-variant-numeric: tabular-nums; line-height: .95; margin: .1em 0 .05em; }
@@ -51,8 +51,27 @@
   #sec { opacity: .7; display: flex; }
   .roll { animation: roll .45s cubic-bezier(.2,.8,.2,1); }
   @keyframes roll { from { transform: translateY(-.3em); opacity: 0; filter: blur(6px); } to { transform: none; opacity: 1; filter: none; } }
-  #sun { display: flex; gap: .5em; align-items: center; font-size: clamp(12px, 3.6vw, 22px); opacity: .8; }
+  #time { transition: color 2.5s; }
+  #status { display: flex; gap: 1.1em; align-items: center; font-size: clamp(12px, 3.6vw, 22px); opacity: .85; }
+  #sun, #batt, #nightWx { display: flex; gap: .4em; align-items: center; }
   #sun svg { width: 1.3em; height: 1.3em; }
+  #batt svg { width: 1.5em; height: 1em; }
+  #nightWx { display: none; }
+
+  /* Nightstand: black screen, dim red clock, nothing moving. */
+  body.nightstand { background: #000; }
+  body.nightstand canvas, body.nightstand #photo, body.nightstand #grain { visibility: hidden; }
+  body.nightstand #wx { display: none; }
+  body.nightstand #clockWrap { color: #ff3b30; opacity: .6; text-shadow: none; }
+  body.nightstand #time { color: #ff3b30 !important; }
+  body.nightstand #status svg { filter: grayscale(1) brightness(.6) sepia(1) hue-rotate(-50deg) saturate(6); }
+  body.nightstand #nightWx { display: flex; }
+  body.nightstand #app { grid-template-rows: 1fr; grid-template-columns: 1fr; }
+
+  .alert { display: flex; gap: 8px; align-items: center; margin: -4px 0 12px; padding: 8px 12px; border-radius: 14px;
+    background: rgba(77,176,255,.22); font-size: 14px; font-weight: 600; }
+  .alert svg { width: 22px; height: 22px; flex: none; }
+  .wx-more { text-align: center; font-size: 11px; opacity: .5; margin-top: 10px; letter-spacing: .05em; }
 
   .glass { background: rgba(16,24,48,.22); -webkit-backdrop-filter: blur(24px) saturate(1.4);
     backdrop-filter: blur(24px) saturate(1.4); border: 1px solid rgba(255,255,255,.18);
@@ -93,7 +112,30 @@
   #sheet { position: fixed; left: 0; right: 0; bottom: 0; margin: 0 auto; width: min(100%, 520px);
     max-height: 85vh; overflow-y: auto; overflow-x: hidden; border-radius: 28px 28px 0 0; padding: 10px 20px calc(env(safe-area-inset-bottom) + 20px);
     background: rgba(20,22,40,.72); transform: translateY(105%); transition: transform .35s cubic-bezier(.2,.8,.2,1); z-index: 5; }
-  #sheet.open { transform: none; }
+  #sheet.open, #details.open { transform: none; }
+  #details { position: fixed; left: 0; right: 0; bottom: 0; margin: 0 auto; width: min(100%, 560px);
+    max-height: 88vh; overflow-y: auto; overflow-x: hidden; border-radius: 28px 28px 0 0; padding: 10px 20px calc(env(safe-area-inset-bottom) + 20px);
+    background: rgba(20,22,40,.72); transform: translateY(105%); transition: transform .35s cubic-bezier(.2,.8,.2,1); z-index: 5; }
+  #details .grab { width: 40px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); margin: 0 auto 12px; }
+  #details h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin: 18px 0 8px; font-weight: 600; }
+  .day { display: grid; grid-template-columns: 6.4em 32px 2.4em 2.2em 1fr 2.2em; align-items: center; gap: 8px; padding: 7px 0;
+    border-top: 1px solid rgba(255,255,255,.1); font-size: 15px; }
+  .day:first-of-type { border-top: 0; }
+  .day svg { width: 32px; height: 32px; }
+  .day small { display: block; font-size: 11px; opacity: .6; white-space: nowrap; }
+  .day .pp { color: #8fd3ff; font-size: 12px; text-align: center; }
+  .day .lo { opacity: .6; text-align: right; }
+  .bar { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); }
+  .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #6fc3ff, #ffd36e, #ff8a5c); }
+  .aqi { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; }
+  .aqi .n { font-family: var(--clock-font); font-size: 40px; font-weight: 600; grid-row: span 2; }
+  .aqi .l { font-size: 17px; font-weight: 600; }
+  .aqi .s { font-size: 13px; opacity: .7; }
+  .aqi-scale { position: relative; height: 6px; border-radius: 3px; margin: 12px 0 4px;
+    background: linear-gradient(90deg, #50f0e6, #50ccaa, #f0e641, #ff5050, #960032, #7d2181); }
+  .aqi-scale b { position: absolute; top: -3px; width: 12px; height: 12px; border-radius: 6px; background: #fff; border: 2px solid #222; transform: translateX(-50%); }
+  .suns { display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; font-size: 13px; }
+  .suns b { display: block; font-size: 17px; margin-top: 2px; }
   #sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); margin: 0 auto 12px; }
   #sheet h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin: 18px 0 8px; font-weight: 600; }
   .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; font-size: 16px; gap: 12px; }
@@ -128,7 +170,7 @@
   <div id="clockWrap">
     <div id="date"></div>
     <div id="time"><div id="digits"></div><div id="side"><span id="ampm"></span><span id="sec"></span></div></div>
-    <div id="sun"></div>
+    <div id="status"><span id="sun"></span><span id="batt"></span><span id="nightWx"></span></div>
   </div>
   <section id="wx" class="glass loading"><div class="wx-msg">Loading weather…</div></section>
 </main>
@@ -136,6 +178,8 @@
 <button id="gear" class="glass" aria-label="Settings">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 </button>
+
+<div id="details" class="glass"></div>
 
 <div id="sheet" class="glass">
   <div class="grab"></div>
@@ -157,6 +201,8 @@
   </div>
   <div class="row">Auto-change <div class="seg" data-pref="auto"><button data-v="0">Off</button><button data-v="2">2 min</button><button data-v="10">10 min</button></div></div>
   <div class="row">Weather effects <div class="seg" data-pref="fx"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
+  <div class="row">Tinted digits <div class="seg" data-pref="tint"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
+  <div class="row"><span>Nightstand<small style="display:block;font-size:12px;opacity:.55">Dim red clock · Auto: 10 PM – 7 AM</small></span><div class="seg" data-pref="night"><button data-v="off">Off</button><button data-v="auto">Auto</button><button data-v="on">On</button></div></div>
   <div class="row">Dim at night <div class="seg" data-pref="dim"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
   <h3>Weather</h3>
   <div class="row">Units <div class="seg" data-pref="unit"><button data-v="c">°C</button><button data-v="f">°F</button></div></div>
@@ -177,7 +223,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // ?wx=<WMO code>&h=<hour>&bg=<style> force a weather scene / time of day / background, for previewing.
 const demo = new URLSearchParams(location.search);
 const prefs = { font: 'rounded', h24: !/[ap]m/i.test(new Date().toLocaleTimeString()), secs: true,
-  bg: 'mesh', fx: false, auto: 2, v: 3, dim: true, unit: /^en-US/.test(navigator.language) && /^America\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? 'f' : 'c', loc: null };
+  bg: 'mesh', fx: false, auto: 2, v: 3, tint: true, night: 'auto', dim: true, unit: /^en-US/.test(navigator.language) && /^America\//.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? 'f' : 'c', loc: null };
 try {
   const stored = JSON.parse(localStorage.getItem('clockPrefs') || '{}');
   // Settings saved before the v2 backgrounds move to the new default look.
@@ -262,13 +308,18 @@ async function fetchWeather() {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}` +
     '&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m,relative_humidity_2m,cloud_cover' +
     '&hourly=temperature_2m,weather_code,precipitation_probability,is_day' +
-    '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max' +
-    '&timezone=auto&timeformat=unixtime&forecast_days=2';
+    '&minutely_15=precipitation&forecast_minutely_15=12' +
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max' +
+    '&timezone=auto&timeformat=unixtime&forecast_days=7';
   try {
     const d = await (await fetch(url)).json();
     if (!d.current) throw new Error('bad response');
     if (!prefs.loc.name && d.timezone) { prefs.loc.name = d.timezone.split('/').pop().replace(/_/g, ' '); save(); applyPrefs(); }
-    wx = { ...d, fetched: Date.now() };
+    wx = { ...d, fetched: Date.now(), air: wx && wx.air };
+    try {
+      const a = await (await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}&current=european_aqi,us_aqi,pm2_5,pm10`)).json();
+      if (a.current) wx.air = a.current;
+    } catch (e) {}
     try { localStorage.setItem('clockWx', JSON.stringify(wx)); } catch (e) {}
   } catch (e) { /* keep showing cached data */ }
   renderWeather();
@@ -285,6 +336,30 @@ function locate() {
     if (!prefs.loc) renderWeather('Tap here to choose a city for weather.');
   }, { timeout: 15000, maximumAge: 30 * 60 * 1000 });
 }
+
+// Short-term rain outlook from the 15-minute forecast, e.g. "Rain starting in ~20 min".
+function rainAlert() {
+  if (!wx || !wx.current) return '';
+  const now = Date.now() / 1000, m = wx.minutely_15, c = wx.current;
+  const snowy = c.temperature_2m <= .5, what = snowy ? 'Snow' : 'Rain';
+  const mins = t => Math.max(5, Math.round((t - now) / 300) * 5);
+  if (m && m.time && m.time.length) {
+    const wet = i => (m.precipitation[i] || 0) >= .1;
+    let i0 = m.time.findIndex(t => t + 900 > now); if (i0 < 0) return '';
+    if (!wet(i0)) {
+      for (let j = i0 + 1; j < m.time.length && m.time[j] - now < 2 * 3600; j++) if (wet(j)) return `${what} starting in ~${mins(m.time[j])} min`;
+    } else {
+      for (let j = i0 + 1; j < m.time.length - 1 && m.time[j] - now < 2 * 3600; j++) if (!wet(j) && !wet(j + 1)) return `${what} stopping in ~${mins(m.time[j])} min`;
+    }
+    return '';
+  }
+  // No 15-minute data: fall back to a likely-rain hint from the hourly forecast.
+  const h = wx.hourly; if (!h) return '';
+  for (let i = 0; i < h.time.length; i++) if (h.time[i] > now && h.time[i] - now < 3 * 3600 && h.precipitation_probability[i] >= 70)
+    return `${what} likely around ${hhmm(h.time[i])}`;
+  return '';
+}
+const UMBRELLA = '<svg viewBox="0 0 24 24" fill="none" stroke="#8fd3ff" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 0 1 18 0z" fill="#8fd3ff" fill-opacity=".35"/><path d="M12 12v6a2 2 0 0 0 4 0"/><path d="M12 3v0"/></svg>';
 
 function renderWeather(msg) {
   const el = $('wx');
@@ -307,14 +382,58 @@ function renderWeather(msg) {
   const wind = prefs.unit === 'f' ? Math.round(c.wind_speed_10m * .621) + ' mph' : Math.round(c.wind_speed_10m) + ' km/h';
   const age = (Date.now() - wx.fetched) / 60000;
   const stale = age > 90 ? ` · ${age > 1440 ? Math.round(age / 1440) + 'd' : Math.round(age / 60) + 'h'} ago` : '';
-  el.innerHTML = `
+  const alert = rainAlert();
+  el.innerHTML = `${alert ? `<div class="alert">${UMBRELLA}${alert}</div>` : ''}
     <div class="wx-now"><div class="ico">${icon(kind, c.is_day)}</div><div class="wx-temp">${temp(c.temperature_2m)}</div>
       <div><div class="wx-cond">${label}</div><div class="wx-sub">H ${temp(d.temperature_2m_max[0])}  L ${temp(d.temperature_2m_min[0])}</div>
       <div class="wx-loc">${prefs.loc.auto ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l7.5 3L13.5 21z"/></svg>' : ''}${prefs.loc.name || ''}${stale}</div></div></div>
     <div class="hourly">${hours}</div>
     <div class="meta"><span>Feels like<b>${temp(c.apparent_temperature)}</b></span><span>Humidity<b>${c.relative_humidity_2m}%</b></span>
-      <span>Wind<b>${wind}</b></span><span>UV<b>${Math.round(d.uv_index_max[0])}</b></span></div>`;
+      <span>Wind<b>${wind}</b></span><span>UV<b>${Math.round(d.uv_index_max[0])}</b></span></div>
+    <div class="wx-more">TAP FOR 7-DAY FORECAST &amp; AIR QUALITY</div>`;
+  $('nightWx').textContent = `${temp(c.temperature_2m)} ${label}${alert ? ' · ' + alert : ''}`;
+  if ($('details').classList.contains('open')) renderDetails();
 }
+
+// ---------- Weather details panel ----------
+function aqiInfo(air) {
+  if (prefs.unit === 'f') {
+    const v = air.us_aqi, l = v <= 50 ? 'Good' : v <= 100 ? 'Moderate' : v <= 150 ? 'Unhealthy for sensitive groups' : v <= 200 ? 'Unhealthy' : v <= 300 ? 'Very unhealthy' : 'Hazardous';
+    return { v, l, pos: Math.min(v / 300, 1), scale: 'US AQI' };
+  }
+  const v = air.european_aqi, l = v <= 20 ? 'Good' : v <= 40 ? 'Fair' : v <= 60 ? 'Moderate' : v <= 80 ? 'Poor' : v <= 100 ? 'Very poor' : 'Extremely poor';
+  return { v, l, pos: Math.min(v / 120, 1), scale: 'European AQI' };
+}
+function renderDetails() {
+  if (!wx || !wx.daily) return;
+  const d = wx.daily, n = d.time.length;
+  const lo = Math.min(...d.temperature_2m_min), hi = Math.max(...d.temperature_2m_max), span = Math.max(1, hi - lo);
+  const sunT = sec => { const t = new Date(sec * 1000), h = t.getHours();
+    return prefs.h24 ? pad(h) + ':' + pad(t.getMinutes()) : (h % 12 || 12) + ':' + pad(t.getMinutes()) + (h < 12 ? 'a' : 'p'); };
+  let days = '';
+  for (let i = 0; i < n; i++) {
+    const name = i === 0 ? 'Today' : new Date(d.time[i] * 1000 + 12 * 3600e3).toLocaleDateString(undefined, { weekday: 'short' });
+    const p = d.precipitation_probability_max ? d.precipitation_probability_max[i] : 0;
+    const a = (d.temperature_2m_min[i] - lo) / span * 100, b = (d.temperature_2m_max[i] - lo) / span * 100;
+    days += `<div class="day"><div>${name}<small>↑${sunT(d.sunrise[i])} ↓${sunT(d.sunset[i])}</small></div>${icon(describe(d.weather_code ? d.weather_code[i] : 3)[0], true)}
+      <span class="pp">${p >= 20 ? p + '%' : ''}</span><span class="lo">${temp(d.temperature_2m_min[i])}</span>
+      <div class="bar"><i style="left:${a}%;right:${100 - b}%"></i></div><span>${temp(d.temperature_2m_max[i])}</span></div>`;
+  }
+  const daylen = s => { const m = Math.round((d.sunset[s] - d.sunrise[s]) / 60); return `${Math.floor(m / 60)}h ${m % 60}m`; };
+  let air = '<div class="note" style="opacity:.6">Air quality unavailable.</div>';
+  if (wx.air) {
+    const q = aqiInfo(wx.air);
+    air = `<div class="aqi"><div class="n">${q.v}</div><div class="l">${q.l}</div><div class="s">${q.scale} · PM2.5 ${Math.round(wx.air.pm2_5)} µg/m³ · PM10 ${Math.round(wx.air.pm10)} µg/m³</div></div>
+      <div class="aqi-scale"><b style="left:${q.pos * 100}%"></b></div>`;
+  }
+  $('details').innerHTML = `<div class="grab"></div>
+    <h3>${prefs.loc && prefs.loc.name || 'Weather'} · 7-day forecast</h3>${days}
+    <h3>Air quality</h3>${air}
+    <h3>Sun</h3><div class="suns"><div>Sunrise<b>${hhmm(d.sunrise[0])}</b></div><div>Sunset<b>${hhmm(d.sunset[0])}</b></div><div>Daylight<b>${daylen(0)}</b></div></div>
+    <button class="btn done" style="width:100%;margin-top:18px;background:rgba(255,255,255,.25);font-weight:600" id="detailsDone">Done</button>`;
+  $('detailsDone').onclick = () => $('details').classList.remove('open');
+}
+function openDetails() { renderDetails(); $('details').classList.add('open'); document.body.classList.remove('ui'); }
 
 function sunTimes() {
   const now = Date.now() / 1000;
@@ -349,8 +468,43 @@ function tick() {
     $('sun').innerHTML = sunTxt ? `<svg viewBox="0 0 64 64">${SUN(32, 38, 9)}<rect x="0" y="44" width="64" height="20" fill="transparent"/><line x1="10" y1="48" x2="54" y2="48" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>${sunTxt}` : ''; }
 
   const night = demo.has('h') ? (+demo.get('h') < 7 || +demo.get('h') >= 19) : (now < st.rise || now > st.set);
-  document.documentElement.style.setProperty('--dim', prefs.dim && night ? .35 : 0);
+  const hr24 = demo.has('h') ? +demo.get('h') : d.getHours();
+  nightstand = prefs.night === 'on' || (prefs.night === 'auto' && (hr24 >= 22 || hr24 < 7));
+  document.body.classList.toggle('nightstand', nightstand);
+  document.documentElement.style.setProperty('--dim', prefs.dim && night && !nightstand ? .35 : 0);
+  $('time').style.color = prefs.tint && !nightstand ? tintFor(activeBg, d) : '';
 }
+let nightstand = false;
+
+// Light tint for the digits, taken from whatever the background is showing.
+const PHOTO_COLORS = { 10: '#59787a', 11: '#98aca1', 13: '#a2b5bb', 14: '#a9a7a2', 15: '#5b6c66', 16: '#75959f', 17: '#5d7e74', 18: '#537b52', 28: '#6b815b', 29: '#77858c',
+  54: '#688e9a', 110: '#a07e3b', 124: '#478080', 127: '#8a8233', 128: '#6f7265', 135: '#6a6c7c', 152: '#6f6175', 176: '#878b81', 184: '#4f2a25', 190: '#554b3e',
+  191: '#8e9197', 206: '#ada180', 213: '#b6adaa', 218: '#a4b2b7', 222: '#aa9d87', 227: '#8c9288', 229: '#646f74', 235: '#748689', 236: '#808080', 241: '#929292' };
+let photoColor = '#808080';
+function tintFor(bg, d) {
+  const hour = demo.has('h') ? +demo.get('h') : d.getHours() + d.getMinutes() / 60;
+  let hue, sat;
+  const fromRgb = c => { const [r, g, b] = c.map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dd = mx - mn;
+    if (!dd) return [0, 0]; const s = dd / (1 - Math.abs(2 * l - 1));
+    const h = mx === r ? ((g - b) / dd) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4; return [(h * 60 + 360) % 360, s]; };
+  if (bg === 'mesh') [hue, sat] = fromRgb(meshPalette(hour)[0]);
+  else if (bg === 'chroma') [hue, sat] = [(hour / 24 * 360 + 200) % 360, .8];
+  else if (bg === 'midnight') [hue, sat] = [255, .8];
+  else if (bg === 'aurora') [hue, sat] = [((d.getHours() * 60 + d.getMinutes()) / 1440 * 360) % 360, .8];
+  else if (bg === 'photos') [hue, sat] = fromRgb(photoColor.match(/\w\w/g).map(x => parseInt(x, 16)));
+  else [hue, sat] = fromRgb(skyColors(d / 1000, sunTimes())[1]);
+  return `hsl(${Math.round(hue)},${Math.round(Math.min(sat * 1.2, .9) * 100)}%,86%)`;
+}
+
+// Battery level where the browser shares it (Android Chrome / Samsung Internet; not iPhone Safari).
+const BATT = (lvl, chg) => `<svg viewBox="0 0 30 16"><rect x="1" y="1" width="24" height="14" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".7"/>
+  <rect x="26.5" y="5" width="2.5" height="6" rx="1" fill="currentColor" opacity=".7"/>
+  <rect x="3.5" y="3.5" width="${Math.max(1.5, 19 * lvl)}" height="9" rx="1.8" fill="${chg ? '#4cd964' : lvl <= .2 ? '#ff453a' : 'currentColor'}"/>
+  ${chg ? '<path d="M14 2.5l-4 6.5h3.5l-1.5 4.5 4.5-6.5H13z" fill="#fff" stroke="#000" stroke-width=".6"/>' : ''}</svg>`;
+if (navigator.getBattery) navigator.getBattery().then(b => {
+  const show = () => { $('batt').innerHTML = BATT(b.level, b.charging) + Math.round(b.level * 100) + '%'; };
+  show(); b.addEventListener('levelchange', show); b.addEventListener('chargingchange', show);
+}).catch(() => {});
 
 // ---------- Background ----------
 // Fine film grain, generated once, gives the gradients a printed, less digital feel.
@@ -406,6 +560,7 @@ const t0 = performance.now();
 let lastT = t0;
 function draw(ts) {
   const t = (ts - t0) / 1000, dt = Math.min(.05, (ts - lastT) / 1000); lastT = ts;
+  if (nightstand) { drift(t); requestAnimationFrame(draw); return; }
   const w = sky.width, h = sky.height;
   let now = Date.now() / 1000;
   const st = sunTimes();
@@ -645,6 +800,7 @@ function nextPhoto() {
       nxt.style.backgroundImage = `url(${img.src})`;
       nxt.classList.remove('show'); void nxt.offsetWidth; nxt.classList.add('show'); cur.classList.remove('show');
       $('credit').textContent = `Photo: ${author} / Unsplash`;
+      photoColor = PHOTO_COLORS[id] || '#808080';
       resolve(true);
     };
     img.onerror = () => resolve(false);
@@ -669,7 +825,7 @@ async function setBackground(bg) {
 
 // Every 2 minutes: next background in the cycle (Live sky stays put), or the next photo.
 setInterval(() => {
-  if (document.hidden || prefs.bg === 'sky') return;
+  if (document.hidden || nightstand || prefs.bg === 'sky') return;
   const every = (prefs.auto || 2) * 60000;
   if (Date.now() - lastSwitch < every) return;
   lastSwitch = Date.now();
@@ -682,7 +838,8 @@ setInterval(() => {
 // ---------- UI ----------
 let uiTimer;
 function showUI() { document.body.classList.add('ui'); clearTimeout(uiTimer); uiTimer = setTimeout(() => document.body.classList.remove('ui'), 4000); }
-$('app').addEventListener('click', e => { requestWake(); if (!prefs.loc && e.target.closest('#wx')) openSheet(); else showUI(); });
+$('app').addEventListener('click', e => { requestWake();
+  if (e.target.closest('#wx')) { if (!prefs.loc) openSheet(); else if (wx) openDetails(); } else showUI(); });
 $('gear').addEventListener('click', openSheet);
 function openSheet() { applyPrefs(); $('sheet').classList.add('open'); document.body.classList.remove('ui'); }
 $('done').addEventListener('click', () => { $('sheet').classList.remove('open'); $('city').blur(); });
