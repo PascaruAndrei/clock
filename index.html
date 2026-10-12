@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Clock">
+<meta name="theme-color" content="#120a24">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<title>Clock</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #120a24; overflow: hidden;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent; touch-action: none; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; }
+  #clock { position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #fff;
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Roboto, sans-serif;
+    text-shadow: 0 0 24px rgba(0,0,0,.35); will-change: transform; }
+  #row { display: flex; align-items: center; font-variant-numeric: tabular-nums; }
+  #hm { font-weight: 100; font-size: min(30vw, 42vh); line-height: 1; letter-spacing: -0.02em; }
+  #side { display: flex; flex-direction: column; justify-content: space-between;
+    margin-left: .25em; font-size: min(8.4vw, 11.8vh); font-weight: 300; opacity: .8;
+    height: min(21vw, 29vh); }
+  #date { margin-top: .6em; font-size: min(4.8vw, 6.7vh); font-weight: 300;
+    letter-spacing: .08em; text-transform: uppercase; opacity: .87; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div id="clock">
+  <div id="row"><div id="hm"></div><div id="side"><span id="ampm"></span><span id="sec"></span></div></div>
+  <div id="date"></div>
+</div>
+<script>
+const cv = document.getElementById('bg'), ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const clock = $('clock');
+
+// Preferences: tap toggles seconds, long-press toggles 12/24h.
+const prefs = { secs: true, h24: !/[ap]m/i.test(new Date().toLocaleTimeString()) };
+try { Object.assign(prefs, JSON.parse(localStorage.getItem('clockPrefs') || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem('clockPrefs', JSON.stringify(prefs)); } catch (e) {} };
+
+let pressT = 0, pressX = 0, pressY = 0;
+addEventListener('pointerdown', e => { pressT = performance.now(); pressX = e.clientX; pressY = e.clientY; requestWake(); });
+addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - pressX, e.clientY - pressY) > 40) return;
+  if (performance.now() - pressT > 500) prefs.h24 = !prefs.h24; else prefs.secs = !prefs.secs;
+  save(); tick();
+});
+
+// Keep the screen awake where the browser allows it.
+let lock = null;
+async function requestWake() {
+  try { if ('wakeLock' in navigator && !lock) { lock = await navigator.wakeLock.request('screen'); lock.onrelease = () => lock = null; } } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) requestWake(); });
+requestWake();
+
+// Background is rendered at low resolution (it's all soft gradients) and scaled up.
+const SCALE = 0.25;
+function resize() { cv.width = Math.ceil(innerWidth * SCALE); cv.height = Math.ceil(innerHeight * SCALE); }
+addEventListener('resize', resize); resize();
+
+const hsl = (h, s, l, a = 1) => `hsla(${((h % 360) + 360) % 360},${s}%,${l}%,${a})`;
+const t0 = performance.now();
+
+function draw() {
+  const w = cv.width, h = cv.height, t = (performance.now() - t0) / 1000;
+  const now = new Date();
+  // Base hue follows the time of day (full wheel per 24h) and drifts slowly.
+  const base = (now.getHours() * 60 + now.getMinutes()) / 1440 * 360 + t * 2;
+
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, hsl(base, 60, 20)); g.addColorStop(1, hsl(base + 60, 65, 10));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+
+  const r = Math.max(w, h) * 0.55;
+  for (let i = 0; i < 5; i++) {
+    const sp = 0.05 + i * 0.013;
+    const x = w * (0.5 + 0.45 * Math.sin(t * sp + i * 1.7));
+    const y = h * (0.5 + 0.45 * Math.cos(t * sp * 1.3 + i * 2.3));
+    const hue = base + i * 50 + 20 * Math.sin(t * 0.1 + i);
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, r * (0.7 + 0.15 * i / 5));
+    rg.addColorStop(0, hsl(hue, 80, 55, 0.44)); rg.addColorStop(1, hsl(hue, 80, 55, 0));
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, w, h);
+  }
+
+  // Tiny slow drift of the text to avoid OLED burn-in.
+  clock.style.transform = `translate(${Math.sin(t / 60) * 1.5}vw, ${Math.cos(t / 47) * 1.5}vh)`;
+  requestAnimationFrame(draw);
+}
+
+const pad = n => String(n).padStart(2, '0');
+function tick() {
+  const d = new Date();
+  let hr = d.getHours();
+  const ampm = hr < 12 ? 'AM' : 'PM';
+  if (!prefs.h24) hr = hr % 12 || 12;
+  $('hm').textContent = (prefs.h24 ? pad(hr) : hr) + ':' + pad(d.getMinutes());
+  $('ampm').textContent = prefs.h24 ? '' : ampm;
+  $('sec').textContent = prefs.secs ? pad(d.getSeconds()) : '';
+  $('date').textContent = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+}
+tick(); setInterval(tick, 250);
+requestAnimationFrame(draw);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

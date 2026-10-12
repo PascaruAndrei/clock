@@ -1,0 +1,3 @@
+{ "name": "Clock", "short_name": "Clock", "start_url": "./", "display": "fullscreen",
+  "background_color": "#120a24", "theme_color": "#120a24",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }] }
