@@ -194,11 +194,15 @@
     <button data-v="chroma"><i style="background:linear-gradient(135deg,#1fa2a6,#2b5fb8)"></i>Chroma</button>
     <button data-v="midnight"><i style="background:radial-gradient(ellipse at 50% 90%,#4b3bbf,transparent 65%),#000"></i>Midnight</button>
     <button data-v="photos"><i style="background:url(https://picsum.photos/id/29/160/120) center/cover"></i>Nature</button>
+    <button data-v="mine"><i id="mineThumb" style="background:linear-gradient(135deg,#ff8a3d,#2b2b6e)"></i>My photos</button>
     <button data-v="mountains"><i style="background:linear-gradient(transparent 55%,#3b3f6e 55%,#3b3f6e 70%,#1d2040 70%),linear-gradient(#f39a73,#7a6fb6)"></i>Peaks</button>
     <button data-v="ocean"><i style="background:linear-gradient(transparent 58%,#1f6f9a 58%,#0f3d63),linear-gradient(#ffb47a,#5a8fd8)"></i>Ocean</button>
     <button data-v="sky"><i style="background:linear-gradient(#1c5cc8,#5ca2ec)"></i>Live sky</button>
     <button data-v="aurora"><i style="background:radial-gradient(circle at 70% 20%,#a04bb0,transparent 60%),linear-gradient(135deg,#1d5a4a,#2a1f5c)"></i>Aurora</button>
   </div>
+  <div class="row"><span>My photos <span id="mineCount" style="opacity:.6"></span><small style="display:block;font-size:12px;opacity:.55">Stay on this phone only</small></span>
+    <span style="display:flex;gap:8px"><button class="btn" id="mineClear">Clear</button><button class="btn" id="mineAdd">Add</button></span></div>
+  <input type="file" id="mineFile" accept="image/*" multiple hidden>
   <div class="row">Auto-change <div class="seg" data-pref="auto"><button data-v="0">Off</button><button data-v="2">2 min</button><button data-v="10">10 min</button></div></div>
   <div class="row">Weather effects <div class="seg" data-pref="fx"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
   <div class="row">Tinted digits <div class="seg" data-pref="tint"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
@@ -210,7 +214,7 @@
   <div class="search"><input id="city" placeholder="Search city" enterkeyhint="search" autocomplete="off"><button class="btn" id="go">Search</button></div>
   <div id="results"></div>
   <button class="btn done" id="done">Done</button>
-  <div class="note">Weather from Open-Meteo. Nature photos from Unsplash via Picsum. Auto-change cycles every background except Live sky. Tap anywhere on the clock to show settings.</div>
+  <div class="note">Weather from Open-Meteo. Nature photos from Unsplash via Picsum. Your own photos stay in this app on this phone. Auto-change cycles every background except Live sky. Tap anywhere on the clock to show settings.</div>
 </div>
 
 <script>
@@ -233,6 +237,7 @@ try {
 } catch (e) {}
 if (demo.has('bg')) { prefs.bg = demo.get('bg'); prefs.auto = 0; }
 let activeBg = prefs.bg;
+const isPhotoBg = bg => bg === 'photos' || bg === 'mine';
 const save = () => { try { localStorage.setItem('clockPrefs', JSON.stringify(prefs)); } catch (e) {} };
 
 
@@ -491,7 +496,7 @@ function tintFor(bg, d) {
   else if (bg === 'chroma') [hue, sat] = [(hour / 24 * 360 + 200) % 360, .8];
   else if (bg === 'midnight') [hue, sat] = [255, .8];
   else if (bg === 'aurora') [hue, sat] = [((d.getHours() * 60 + d.getMinutes()) / 1440 * 360) % 360, .8];
-  else if (bg === 'photos') [hue, sat] = fromRgb(photoColor.match(/\w\w/g).map(x => parseInt(x, 16)));
+  else if (isPhotoBg(bg)) [hue, sat] = fromRgb(photoColor.match(/\w\w/g).map(x => parseInt(x, 16)));
   else [hue, sat] = fromRgb(skyColors(d / 1000, sunTimes())[1]);
   return `hsl(${Math.round(hue)},${Math.round(Math.min(sat * 1.2, .9) * 100)}%,86%)`;
 }
@@ -664,7 +669,7 @@ function draw(ts) {
     drift(t); requestAnimationFrame(draw); return;
   }
 
-  if (activeBg === 'photos') {
+  if (isPhotoBg(activeBg)) {
     sctx.fillStyle = '#000'; sctx.fillRect(0, 0, w, h);
     fctx.setTransform(1, 0, 0, 1, 0, 0); fctx.clearRect(0, 0, fx.width, fx.height);
     drift(t); requestAnimationFrame(draw); return;
@@ -787,37 +792,106 @@ function meshPalette(hour) {
 // ---------- Background switching ----------
 const PHOTOS = [[10, "Paul Jarvis"], [11, "Paul Jarvis"], [13, "Paul Jarvis"], [14, "Paul Jarvis"], [15, "Paul Jarvis"], [16, "Paul Jarvis"], [17, "Paul Jarvis"], [18, "Paul Jarvis"], [28, "Jerry Adney"], [29, "Go Wild"], [54, "Nicholas Swanson"], [110, "Kenneth Thewissen"], [124, "Anton Sulsky"], [127, "Marcin Czerwinski"], [128, "Matteo Minelli"], [135, "Yuriy Khimanin"], [152, "Steven Spassov"], [176, "Good Free Photos"], [184, "Tim de Groot"], [190, "James Forbes"], [191, "Alex Talmon"], [206, "Philipp Reiner"], [213, "Kelly Sikkema"], [218, "Monika Majkowska"], [222, "Todd Quackenbush"], [227, "Andrea Boldizsar"], [229, "Orlova Maria"], [235, "Paul E. Harrer"], [236, "Chris Adams"], [241, "Sylwia Bartyzel"]];
 const CYCLE = ['mesh', 'photos', 'mountains', 'chroma', 'ocean', 'midnight', 'photos', 'aurora'];
-let photoIdx = Math.floor(Math.random() * PHOTOS.length), photoSlot = 0, lastSwitch = Date.now();
+let photoIdx = Math.floor(Math.random() * PHOTOS.length), photoSlot = 0, lastSwitch = Date.now(), cycleStep = Math.max(0, CYCLE.indexOf(prefs.bg));
 const photoUrl = id => innerWidth > innerHeight ? `https://picsum.photos/id/${id}/1920/1080` : `https://picsum.photos/id/${id}/1080/1920`;
 
-// Show the next nature photo once it has loaded; resolves false if it can't (e.g. offline).
-function nextPhoto() {
-  return new Promise(resolve => {
+// Show the next photo (nature, or the user's own) once it has loaded; resolves false if it can't (e.g. offline, none added).
+let mineIdx = -1, mineUrl = null;
+async function nextPhoto(kind = 'photos') {
+  let src, credit, color;
+  if (kind === 'mine') {
+    const keys = await mineKeys();
+    if (!keys.length) return false;
+    const rec = await mineGet(keys[mineIdx = (mineIdx + 1) % keys.length]);
+    if (!rec) return false;
+    if (mineUrl) setTimeout(URL.revokeObjectURL.bind(URL, mineUrl), 4000);
+    src = mineUrl = URL.createObjectURL(rec.blob); credit = ''; color = rec.color;
+  } else {
     const [id, author] = PHOTOS[photoIdx = (photoIdx + 1) % PHOTOS.length];
+    src = photoUrl(id); credit = `Photo: ${author} / Unsplash`; color = PHOTO_COLORS[id];
+  }
+  return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
       const slots = $('photo').children, cur = slots[photoSlot], nxt = slots[photoSlot ^= 1];
       nxt.style.backgroundImage = `url(${img.src})`;
       nxt.classList.remove('show'); void nxt.offsetWidth; nxt.classList.add('show'); cur.classList.remove('show');
-      $('credit').textContent = `Photo: ${author} / Unsplash`;
-      photoColor = PHOTO_COLORS[id] || '#808080';
+      $('credit').textContent = credit;
+      photoColor = color || '#808080';
       resolve(true);
     };
     img.onerror = () => resolve(false);
-    img.src = photoUrl(id);
+    img.src = src;
   });
 }
 
+// ---------- My photos: kept in this phone's browser storage (IndexedDB), never uploaded ----------
+const mineDb = new Promise((res, rej) => {
+  try { const r = indexedDB.open('clock', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('photos', { autoIncrement: true });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); }
+});
+const mineTx = (mode, fn) => mineDb.then(db => new Promise((res, rej) => {
+  const t = db.transaction('photos', mode), st = t.objectStore('photos'), out = fn(st);
+  t.oncomplete = () => res(out && out.result); t.onerror = () => rej(t.error);
+})).catch(() => null);
+const mineKeys = async () => (await mineTx('readonly', st => st.getAllKeys())) || [];
+const mineGet = key => mineTx('readonly', st => st.get(key));
+let mineTotal = 0;
+async function refreshMine() {
+  const keys = await mineKeys(); mineTotal = keys.length;
+  $('mineCount').textContent = mineTotal ? `(${mineTotal})` : '';
+  const th = $('mineThumb');
+  if (mineTotal) { const rec = await mineGet(keys[0]); if (rec) th.style.background = `url(${URL.createObjectURL(rec.blob)}) center/cover`; }
+  else th.style.background = 'linear-gradient(135deg,#ff8a3d,#2b2b6e)';
+}
+// Downscale big images so many fit in storage, and note their average colour for the digit tint.
+async function importPhoto(file) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  const x = c.getContext('2d'); x.drawImage(bmp, 0, 0, c.width, c.height);
+  const one = document.createElement('canvas'); one.width = one.height = 1; one.getContext('2d').drawImage(c, 0, 0, 1, 1);
+  const [r, g, b] = one.getContext('2d').getImageData(0, 0, 1, 1).data;
+  const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', .88));
+  await mineTx('readwrite', st => st.add({ blob, color: '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('') }));
+}
+$('mineAdd').addEventListener('click', () => $('mineFile').click());
+$('mineFile').addEventListener('change', async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  $('mineAdd').textContent = 'Adding…';
+  for (const f of files) { try { await importPhoto(f); } catch (err) {} }
+  $('mineAdd').textContent = 'Add';
+  await refreshMine();
+  prefs.bg = 'mine'; save(); lastSwitch = Date.now(); mineIdx = mineTotal - files.length - 1;
+  setBackground('mine');
+});
+$('mineClear').addEventListener('click', async () => {
+  if (!mineTotal || !confirm(`Remove all ${mineTotal} of your photos from the clock?`)) return;
+  await mineTx('readwrite', st => st.clear());
+  await refreshMine();
+  if (prefs.bg === 'mine') { prefs.bg = 'mesh'; save(); }
+  if (activeBg === 'mine') setBackground('mesh');
+});
+refreshMine();
+
 // Cross-fade from the current background to another one.
 async function setBackground(bg) {
-  if (bg === 'photos' && !(await nextPhoto())) bg = activeBg === 'photos' ? 'mesh' : activeBg;
-  if (bg === activeBg && bg !== 'photos') return;
+  if (isPhotoBg(bg) && !(await nextPhoto(bg))) {
+    if (bg === 'mine' && !mineTotal) { openSheet(); $('mineAdd').animate([{ transform: 'scale(1.15)' }, { transform: 'none' }], 600); }
+    const wanted = bg;
+    bg = !activeBg || activeBg === wanted ? 'mesh' : activeBg;
+    if (prefs.bg === wanted) { prefs.bg = bg; save(); }
+    if (bg === activeBg) { applyPrefs(); return; }
+  }
+  if (bg === activeBg && !isPhotoBg(bg)) return;
   const prev = $('prev'), pc = prev.getContext('2d');
   prev.width = W; prev.height = H;
   pc.drawImage(sky, 0, 0, W, H); pc.drawImage(fx, 0, 0, W, H);
-  prev.style.transition = 'none'; prev.style.opacity = activeBg === 'photos' ? 0 : 1;
+  prev.style.transition = 'none'; prev.style.opacity = isPhotoBg(activeBg) ? 0 : 1;
   activeBg = bg;
-  $('photo').classList.toggle('on', bg === 'photos');
+  $('photo').classList.toggle('on', isPhotoBg(bg));
   document.body.classList.toggle('photo', bg === 'photos');
   applyPrefs();
   requestAnimationFrame(() => requestAnimationFrame(() => { prev.style.transition = 'opacity 2.5s'; prev.style.opacity = 0; }));
@@ -830,9 +904,11 @@ setInterval(() => {
   if (Date.now() - lastSwitch < every) return;
   lastSwitch = Date.now();
   if (prefs.auto) {
-    const i = CYCLE.indexOf(activeBg);
-    setBackground(CYCLE[(i + 1) % CYCLE.length]);
-  } else if (activeBg === 'photos') nextPhoto();
+    // With photos of your own, every other step shows one of them.
+    if (mineTotal && activeBg !== 'mine') return setBackground('mine');
+    cycleStep = (cycleStep + 1) % CYCLE.length;
+    setBackground(CYCLE[cycleStep] === activeBg ? CYCLE[cycleStep = (cycleStep + 1) % CYCLE.length] : CYCLE[cycleStep]);
+  } else if (isPhotoBg(activeBg)) nextPhoto(activeBg);
 }, 5000);
 
 // ---------- UI ----------
@@ -878,7 +954,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 
 // ---------- Start ----------
 applyPrefs(); tick(); renderWeather();
-if (activeBg === 'photos') { activeBg = ''; setBackground('photos'); }
+if (isPhotoBg(activeBg)) { const b = activeBg; activeBg = ''; setBackground(b); }
 setInterval(tick, 250);
 requestAnimationFrame(draw);
 requestWake();
